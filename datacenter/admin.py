@@ -29,7 +29,18 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Speaker)
 class SpeakerAdmin(admin.ModelAdmin):
-    list_display = ['name', 'telegram_id']
+    list_display = ('name', 'telegram_id', 'speeches_count')
+    search_fields = ('name',)
+    list_editable = ('telegram_id',)
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('name',)
+        }),
+        ('Telegram', {
+            'fields': ('telegram_id',)
+        }),
+    )
 
 
 @admin.register(Speech)
