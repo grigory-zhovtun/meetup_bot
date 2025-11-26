@@ -100,4 +100,4 @@ class Subscription(models.Model):
         verbose_name_plural = 'Подписки'
 
     def __str__(self):
-        return self.title
+        return f"{self.participant.full_name or self.participant.telegram_id} → {self.event.title}"
