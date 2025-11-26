@@ -20,3 +20,12 @@ from django.urls import path
 urlpatterns = [
     path("admin/", admin.site.urls),
 ]
+
+
+ADMIN_TITLE = "PythonMeetup Bot Admin"
+ADMIN_HEADER = "PythonMeetup Administration"
+ADMIN_INDEX_TITLE = "Добро пожаловать в панель управления PythonMeetup"
+
+admin.site.site_header = ADMIN_HEADER
+admin.site.site_title = ADMIN_TITLE
+admin.site.index_title = ADMIN_INDEX_TITLE
