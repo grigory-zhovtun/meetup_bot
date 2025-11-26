@@ -24,7 +24,7 @@ urlpatterns = [
 
 ADMIN_TITLE = "Meetup Bot Admin"
 ADMIN_HEADER = "Meetup Administration"
-ADMIN_INDEX_TITLE = "Добро пожаловать в панель управления PythonMeetup"
+ADMIN_INDEX_TITLE = "Добро пожаловать в панель управления Meetup"
 
 admin.site.site_header = ADMIN_HEADER
 admin.site.site_title = ADMIN_TITLE
