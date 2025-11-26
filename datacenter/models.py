@@ -29,7 +29,7 @@ class Speaker(models.Model):
         verbose_name_plural = 'Спикеры'
 
     def __str__(self):
-        return self.title
+        return self.name
 
 
 class Speech(models.Model):
