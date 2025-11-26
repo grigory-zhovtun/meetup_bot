@@ -102,3 +102,11 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+ADMIN_TITLE = "PythonMeetup Bot Admin"
+ADMIN_HEADER = "PythonMeetup Administration"
+ADMIN_INDEX_TITLE = "Добро пожаловать в панель управления PythonMeetup"
+
+admin.site.site_header = ADMIN_HEADER
+admin.site.site_title = ADMIN_TITLE
+admin.site.index_title = ADMIN_INDEX_TITLE
