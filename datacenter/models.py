@@ -10,6 +10,14 @@ class Event(models.Model):
     is_active = models.BooleanField('Активно', default=False)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
 
+    @property
+    def total_speeches(self):
+        return self.speech_set.count()
+
+    @property
+    def total_participants(self):
+        return self.subscription_set.count()
+
     class Meta:
         ordering = ('title',)
         verbose_name = 'Конференция'
@@ -22,6 +30,10 @@ class Event(models.Model):
 class Speaker(models.Model):
     name = models.CharField('Имя', max_length=255)
     telegram_id = models.BigIntegerField(null=True, blank=True)
+
+    @property
+    def speeches_count(self):
+        return self.speech_set.count()
 
     class Meta:
         ordering = ('name',)
@@ -58,6 +70,10 @@ class Participant(models.Model):
     position = models.CharField(max_length=255, blank=True)
     experience = models.CharField(max_length=100, blank=True)
     registered_at = models.DateTimeField(blank=True)
+
+    @property
+    def questions_count(self):
+        return self.question_set.count()
 
     class Meta:
         ordering = ('registered_at',)
