@@ -65,7 +65,12 @@ class Participant(models.Model):
         verbose_name_plural = 'Участники'
 
     def __str__(self):
-        return self.title
+        if self.full_name:
+            return self.full_name
+        elif self.username:
+            return f"@{self.username}"
+        else:
+            return f"Participant {self.telegram_id}"
 
 
 class Question(models.Model):
