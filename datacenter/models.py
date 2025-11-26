@@ -69,7 +69,7 @@ class Participant(models.Model):
     company = models.CharField(max_length=255, blank=True)
     position = models.CharField(max_length=255, blank=True)
     experience = models.CharField(max_length=100, blank=True)
-    registered_at = models.DateTimeField(blank=True)
+    registered_at = models.DateTimeField(auto_now_add=True)
 
     @property
     def questions_count(self):
