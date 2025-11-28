@@ -1,6 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters
-from tg_bot.talks import start_ask_question, handle_question_if_waiting, show_schedule, show_speaker_questions
+from tg_bot.talks import start_ask_question, handle_question_if_waiting, show_schedule, show_speaker_questions, subscribe_to_next_events
 from tg_bot.networking import start_networking, handle_networking_message_if_active
 from tg_bot.donations import start_donation, handle_donation_message_if_active
 
@@ -74,6 +74,7 @@ def register_common_handlers(dispatcher):
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("my_questions", show_speaker_questions))
+    dispatcher.add_handler(CommandHandler("subscribe", subscribe_to_next_events))
 
     dispatcher.add_handler(
         MessageHandler(Filters.text & ~Filters.command, menu_router)

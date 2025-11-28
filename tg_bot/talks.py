@@ -2,7 +2,7 @@ from django.utils import timezone
 from telegram import Update
 from telegram.ext import CallbackContext
 
-from datacenter.models import Event, Speech, Speaker, Participant, Question
+from datacenter.models import Event, Speech, Speaker, Participant, Question, Subscription
 
 
 def start_ask_question(update: Update, context: CallbackContext) -> None:
@@ -195,3 +195,40 @@ def show_speaker_questions(update: Update, context: CallbackContext) -> None:
     text = header + "\n".join(lines)
 
     update.message.reply_text(text)
+
+
+def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
+    user = update.effective_user
+
+    event = Event.objects.filter(is_active=True).first()
+    if not event:
+        event = Event.objects.order_by("-date").first()
+
+    if not event:
+        update.message.reply_text(
+            "Сейчас нет ни одного мероприятия в базе, "
+            "но организаторы смогут добавить тебя позже"
+        )
+        return
+
+    participant, _ = Participant.objects.get_or_create(
+        telegram_id=user.id,
+        defaults={
+            "username": user.username,
+            "full_name": f"{user.first_name} {user.last_name or ''}".strip(),
+        },
+    )
+
+    subscription, created = Subscription.objects.get_or_create(
+        participant=participant,
+        event=event,
+    )
+
+    if created:
+        update.message.reply_text(
+            "Готово! Мы напомним тебе о следующих митапах."
+        )
+    else:
+        update.message.reply_text(
+            "Ты уже подписан на уведомления о следующем митапе."
+        )
