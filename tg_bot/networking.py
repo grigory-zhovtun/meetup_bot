@@ -238,17 +238,31 @@ def _fetch_next_candidate_stub(user_telegram_id: int, context: CallbackContext):
     Возвращает следующего кандидата из DUMMY_CANDIDATES, которого пользователь ещё не видел.
     Эта функция должна дергать Django API.
     """
-    seen_ids = context.user_data.get("networking_seen_dummy_ids")
-    if seen_ids is None:
-        seen_ids = set()
-    if not isinstance(seen_ids, set):
-        seen_ids = set()
+    seen_ids = context.user_data.get("networking_seen_ids", set())
 
-    for idx, candidate in enumerate(DUMMY_CANDIDATES):
-        if idx in seen_ids:
-            continue
-        seen_ids.add(idx)
-        context.user_data["networking_seen_dummy_ids"] = seen_ids
-        return candidate
+    candidate = Participant.objects.filter(
+        # Ищем тех, у кого заполнена должность (считаем это признаком заполненной анкеты)
+        position__isnull=False
+    ).exclude(
+        position=''  # Исключаем пустые строки
+    ).exclude(
+        telegram_id=user_telegram_id  # Не показываем самого себя
+    ).exclude(
+        id__in=seen_ids  # Не показываем тех, кого уже видели
+    ).first()  # Берем первого попавшегося
+
+    if candidate:
+        # Добавляем ID найденного в список просмотренных
+        seen_ids.add(candidate.id)
+        context.user_data["networking_seen_ids"] = seen_ids
+
+        # Превращаем объект модели в словарь для функции отображения
+        return {
+            "full_name": candidate.full_name,
+            "username": candidate.username,
+            "role": candidate.position,
+            "experience": candidate.experience,
+            "looking_for": candidate.looking_for,
+        }
 
     return None
