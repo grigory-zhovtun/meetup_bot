@@ -1,5 +1,6 @@
 from telegram import Update
 from telegram.ext import CallbackContext
+from datacenter.models import Participant
 
 PROFILE_QUESTIONS = [
     (
@@ -115,13 +116,18 @@ def _finish_profile(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
 
     # TODO: здесь должен быть вызов Django API, что-то вроде:
-    # api_client.save_networking_profile(
-    #     telegram_id=user.id,
-    #     username=user.username,
-    #     full_name=user.full_name,
-    #     **form,
-    # )
-    print(f"[NETWORKING PROFILE] from {user.id} (@{user.username}): {form}")
+    participant, _ = Participant.objects.get_or_create(
+        telegram_id=user.id,
+        defaults={'username': user.username}
+    )
+    participant.position = form.get('role', '')
+    participant.experience = form.get('experience', '')
+    participant.looking_for = form.get('looking_for', '')
+    if not participant.full_name:
+        participant.full_name = user.full_name
+
+    participant.save()
+    # print(f"[NETWORKING PROFILE] from {user.id} (@{user.username}): {form}")
 
     context.user_data["networking_state"] = None
     context.user_data["networking_step"] = 0
