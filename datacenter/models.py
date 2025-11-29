@@ -26,6 +26,25 @@ class Event(models.Model):
     def __str__(self):
         return self.title
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_event = Event.objects.get(pk=self.pk)
+            important_fields_changed = (
+                old_event.title != self.title or
+                old_event.date != self.date or
+                old_event.description != self.description
+            )
+            
+            super().save(*args, **kwargs)
+            
+            if important_fields_changed:
+                from tg_bot.notifications import get_notification_service
+                notification_service = get_notification_service()
+                change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальную информацию."
+                notification_service.send_program_change_notification(self, change_description)
+        else:
+            super().save(*args, **kwargs)
+
 
 class Speaker(models.Model):
     name = models.CharField('Имя', max_length=255)
@@ -60,6 +79,36 @@ class Speech(models.Model):
 
     def __str__(self):
         return f'{self.title} - {self.speaker.name}'
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_speech = Speech.objects.get(pk=self.pk)
+            important_fields_changed = (
+                old_speech.title != self.title or
+                old_speech.start_time != self.start_time or
+                old_speech.end_time != self.end_time or
+                old_speech.speaker_id != self.speaker_id
+            )
+            
+            super().save(*args, **kwargs)
+            
+            if important_fields_changed:
+                from tg_bot.notifications import get_notification_service
+                notification_service = get_notification_service()
+                change_description = f"Изменения в выступлении '{self.title}'. Проверьте актуальное расписание."
+                notification_service.send_program_change_notification(self.event, change_description)
+        else:
+            super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        event = self.event
+        title = self.title
+        super().delete(*args, **kwargs)
+        
+        from .notifications import get_notification_service
+        notification_service = get_notification_service()
+        change_description = f"Выступление '{title}' было удалено из программы."
+        notification_service.send_program_change_notification(event, change_description)
 
 
 class Participant(models.Model):
@@ -116,8 +165,12 @@ class Subscription(models.Model):
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE)
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     subscribed_at = models.DateTimeField(auto_now_add=True)
+    notify_program_changes = models.BooleanField(default=True)
+    notify_new_events = models.BooleanField(default=True)
+    notify_reminders = models.BooleanField(default=True)
 
     class Meta:
+        unique_together = ['participant', 'event']
         ordering = ('participant',)
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
@@ -137,4 +190,33 @@ class Donation(models.Model):
 
     def __str__(self):
         return f"{self.amount}₽ от {self.participant}"
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('program_change', 'Изменение программы'),
+        ('new_event', 'Новое мероприятие'),
+        ('reminder', 'Напоминание'),
+        ('general', 'Общее уведомление'),
+    ]
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='general')
+    is_sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.created_at.strftime('%d.%m.%Y %H:%M')})"
+
+
+class UserNotification(models.Model):
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE)
+    notification = models.ForeignKey(Notification, on_delete=models.CASCADE)
+    is_read = models.BooleanField(default=False)
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Уведомлние для {self.participant} - {self.notification.title}"
         

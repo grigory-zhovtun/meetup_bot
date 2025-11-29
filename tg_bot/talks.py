@@ -1,8 +1,9 @@
 from django.utils import timezone
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 
 from datacenter.models import Event, Speech, Speaker, Participant, Question, Subscription
+from .notifications import get_notification_service
 
 
 def start_ask_question(update: Update, context: CallbackContext) -> None:
@@ -222,13 +223,193 @@ def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
     subscription, created = Subscription.objects.get_or_create(
         participant=participant,
         event=event,
+        defaults={
+            'notify_program_changes': True,
+            'notify_new_events': True,
+            'notify_reminders': True
+        }
     )
 
     if created:
         update.message.reply_text(
-            "Готово! Мы напомним тебе о следующих митапах."
+            "Готово! Ты подписан на уведомления о:\n"
+            "• Изменениях в программе\n"
+            "• Новых мероприятиях\n"
+            "• Напоминаниях о начале\n\n"
+            "Используй /settings чтобы настроить уведомления"
         )
     else:
         update.message.reply_text(
-            "Ты уже подписан на уведомления о следующем митапе."
+            "Ты уже подписан на уведомления о следующем митапе.\n"
+            "Используй /settings чтобы изменить настройки"
         )
+
+
+def unsubscribe_from_events(update: Update, context: CallbackContext) -> None:
+    user = update.effective_user
+    
+    try:
+        participant = Participant.objects.get(telegram_id=user.id)
+        subscriptions = Subscription.objects.filter(participant=participant)
+        
+        if not subscriptions.exists():
+            update.message.reply_text("Ты не подписан на уведомления.")
+            return
+        
+        subscriptions.update(
+            notify_program_changes=False,
+            notify_new_events=False,
+            notify_reminders=False
+        )
+        
+        update.message.reply_text(
+            "Ты отписался от всех уведомлений.\n"
+            "Используй /subscribe чтобы снова подписаться"
+        )
+        
+    except Participant.DoesNotExist:
+        update.message.reply_text("Сначала зарегистрируйся через /start")
+    except Exception as e:
+        logger.error(f"Error unsubscribing: {e}")
+        update.message.reply_text("Произошла ошибка. Попробуй позже.")
+
+
+def notification_settings(update: Update, context: CallbackContext) -> None:
+    user = update.effective_user
+    
+    try:
+        participant = Participant.objects.get(telegram_id=user.id)
+        event = Event.objects.filter(is_active=True).first()
+        
+        if not event:
+            update.message.reply_text("Сейчас нет активных мероприятий.")
+            return
+        
+        subscription, created = Subscription.objects.get_or_create(
+            participant=participant,
+            event=event,
+            defaults={
+                'notify_program_changes': True,
+                'notify_new_events': True,
+                'notify_reminders': True
+            }
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_program_changes else "ВЫКЛ",
+                    callback_data=f"toggle_program_{subscription.id}"
+                ),
+                InlineKeyboardButton("Изменения программы", callback_data="info_program")
+            ],
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_new_events else "ВЫКЛ", 
+                    callback_data=f"toggle_events_{subscription.id}"
+                ),
+                InlineKeyboardButton("Новые мероприятия", callback_data="info_events")
+            ],
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_reminders else "ВЫКЛ",
+                    callback_data=f"toggle_reminders_{subscription.id}"
+                ),
+                InlineKeyboardButton("Напоминания", callback_data="info_reminders")
+            ],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        status_text = (
+            f"*Настройки уведомлений для {event.title}*\n\n"
+            f"Изменения программы: {'ВКЛ' if subscription.notify_program_changes else 'ВЫКЛ'}\n"
+            f"Новые мероприятия: {'ВКЛ' if subscription.notify_new_events else 'ВЫКЛ'}\n"
+            f"Напоминания: {'ВКЛ' if subscription.notify_reminders else 'ВЫКЛ'}\n\n"
+            "Нажми на кнопку ВКЛ/ВЫКЛ чтобы изменить настройку"
+        )
+        
+        update.message.reply_text(status_text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Participant.DoesNotExist:
+        update.message.reply_text("Сначала зарегистрируйся через /start")
+    except Exception as e:
+        logger.error(f"Error showing settings: {e}")
+        update.message.reply_text("Произошла ошибка. Попробуй позже.")
+
+
+def handle_settings_callback(update: Update, context: CallbackContext) -> None:
+    query = update.callback_query
+    query.answer()
+    
+    data = query.data
+    
+    if data.startswith('toggle_program_'):
+        subscription_id = data.replace('toggle_program_', '')
+        _toggle_setting(query, subscription_id, 'notify_program_changes')
+        
+    elif data.startswith('toggle_events_'):
+        subscription_id = data.replace('toggle_events_', '')
+        _toggle_setting(query, subscription_id, 'notify_new_events')
+        
+    elif data.startswith('toggle_reminders_'):
+        subscription_id = data.replace('toggle_reminders_', '')
+        _toggle_setting(query, subscription_id, 'notify_reminders')
+        
+    elif data.startswith('info_'):
+        info_text = {
+            'info_program': 'Получать уведомления об изменениях в программе мероприятия',
+            'info_events': 'Получать уведомления о новых мероприятиях',
+            'info_reminders': 'Получать напоминания о начале выступлений'
+        }
+        query.answer(info_text.get(data, "Информация"), show_alert=True)
+
+
+def _toggle_setting(query, subscription_id, setting_name):
+    try:
+        subscription = Subscription.objects.get(id=subscription_id)
+        current_value = getattr(subscription, setting_name)
+        setattr(subscription, setting_name, not current_value)
+        subscription.save()
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_program_changes else "ВЫКЛ",
+                    callback_data=f"toggle_program_{subscription.id}"
+                ),
+                InlineKeyboardButton("Изменения программы", callback_data="info_program")
+            ],
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_new_events else "ВЫКЛ", 
+                    callback_data=f"toggle_events_{subscription.id}"
+                ),
+                InlineKeyboardButton("Новые мероприятия", callback_data="info_events")
+            ],
+            [
+                InlineKeyboardButton(
+                    "ВКЛ" if subscription.notify_reminders else "ВЫКЛ",
+                    callback_data=f"toggle_reminders_{subscription.id}"
+                ),
+                InlineKeyboardButton("Напоминания", callback_data="info_reminders")
+            ],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        status_text = (
+            f"*Настройки уведомлений*\n\n"
+            f"Изменения программы: {'ВКЛ' if subscription.notify_program_changes else 'ВЫКЛ'}\n"
+            f"Новые мероприятия: {'ВКЛ' if subscription.notify_new_events else 'ВЫКЛ'}\n"
+            f"Напоминания: {'ВКЛ' if subscription.notify_reminders else 'ВЫКЛ'}\n\n"
+            "Нажми на кнопку ВКЛ/ВЫКЛ чтобы изменить настройку"
+        )
+        
+        query.edit_message_text(status_text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Subscription.DoesNotExist:
+        query.edit_message_text("Ошибка: подписка не найдена")
+    except Exception as e:
+        logger.error(f"Error toggling setting: {e}")
+        query.edit_message_text("Произошла ошибка. Попробуй позже.")
