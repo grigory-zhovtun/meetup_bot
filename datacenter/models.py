@@ -210,6 +210,10 @@ class Notification(models.Model):
     def __str__(self):
         return f"{self.title} ({self.created_at.strftime('%d.%m.%Y %H:%M')})"
 
+    class Meta:
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
+
 
 class UserNotification(models.Model):
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE)
