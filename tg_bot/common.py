@@ -1,6 +1,10 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters
-from tg_bot.talks import start_ask_question, handle_question_if_waiting, show_schedule, show_speaker_questions, subscribe_to_next_events
+from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+from tg_bot.talks import (
+    start_ask_question, handle_question_if_waiting, show_schedule, 
+    show_speaker_questions, subscribe_to_next_events, unsubscribe_from_events,
+    notification_settings, handle_settings_callback
+)
 from tg_bot.networking import start_networking, handle_networking_message_if_active
 from tg_bot.donations import start_donation, handle_donation_message_if_active
 
@@ -22,7 +26,8 @@ def start(update: Update, context: CallbackContext):
         "• Передать твой вопрос текущему спикеру\n"
         "• Показать программу митапа\n"
         "• Помочь познакомиться с другими разработчиками\n"
-        "• Дать ссылку, чтобы поддержать мероприятие\n\n"
+        "• Дать ссылку, чтобы поддержать мероприятие\n"
+        "• Присылать уведомления об изменениях\n\n"
         "Выбери, чем хочешь заняться сейчас:"
     ).format(name=user.first_name or "гость")
 
@@ -33,7 +38,11 @@ def help_command(update: Update, context: CallbackContext):
     text = (
         "Команды:\n"
         "/start — описание и главное меню\n"
-        "/help — помощь\n\n"
+        "/help — помощь\n"
+        "/subscribe — подписаться на уведомления\n"
+        "/unsubscribe — отписаться от уведомлений\n"
+        "/settings — настройки уведомлений\n"
+        "/my_questions — для спикеров: посмотреть вопросы\n\n"
         "Основные действия доступны через кнопки внизу экрана."
     )
     update.message.reply_text(text)
@@ -75,6 +84,13 @@ def register_common_handlers(dispatcher):
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("my_questions", show_speaker_questions))
     dispatcher.add_handler(CommandHandler("subscribe", subscribe_to_next_events))
+    dispatcher.add_handler(CommandHandler("unsubscribe", unsubscribe_from_events))
+    dispatcher.add_handler(CommandHandler("settings", notification_settings))
+    dispatcher.add_handler(CommandHandler("program", show_schedule))
+
+    
+    # Обработчик callback запросов для настроек
+    dispatcher.add_handler(CallbackQueryHandler(handle_settings_callback, pattern='^(toggle_|info_)'))
 
     dispatcher.add_handler(
         MessageHandler(Filters.text & ~Filters.command, menu_router)

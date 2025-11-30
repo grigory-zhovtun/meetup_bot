@@ -6,7 +6,6 @@ from environs import Env
 env = Env()
 env.read_env()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -55,11 +54,12 @@ TEMPLATES = [
     },
 ]
 
+NOTIFICATION_SETTINGS = {
+    "reminder_minutes_before": 15,
+    "max_reties": 3,
+}
+
 WSGI_APPLICATION = "meetup.wsgi.application"
-
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
     'default': dj_database_url.config(
@@ -67,10 +67,6 @@ DATABASES = {
         conn_max_age=600
     )
 }
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -88,12 +84,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Europe/Moscow"
 
 USE_I18N = True
 
@@ -107,7 +100,5 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
