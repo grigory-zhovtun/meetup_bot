@@ -23,7 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "datacenter",
+    "datacenter.apps.DatacenterConfig",
 ]
 
 MIDDLEWARE = [

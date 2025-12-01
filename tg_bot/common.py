@@ -89,7 +89,6 @@ def register_common_handlers(dispatcher):
     dispatcher.add_handler(CommandHandler("program", show_schedule))
 
     
-    # Обработчик callback запросов для настроек
     dispatcher.add_handler(CallbackQueryHandler(handle_settings_callback, pattern='^(toggle_|info_)'))
 
     dispatcher.add_handler(

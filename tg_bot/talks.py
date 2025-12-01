@@ -78,6 +78,20 @@ def handle_question_if_waiting(
     return True
 
 
+def _format_time(dt):
+    if not dt:
+        return "Не указано"
+    local_dt = timezone.localtime(dt)
+    return local_dt.strftime("%H:%M")
+
+
+def _format_datetime(dt):
+    if not dt:
+        return "Не указано"
+    local_dt = timezone.localtime(dt)
+    return local_dt.strftime("%d.%m.%Y %H:%M")
+
+
 def show_schedule(update: Update, context: CallbackContext) -> None:
     try:
         event = Event.objects.filter(is_active=True).first()
@@ -103,7 +117,7 @@ def show_schedule(update: Update, context: CallbackContext) -> None:
                 status = "Будет"
             else:
                 status = "Завершено"
-            schedule_text += f"{status}, {speech.start_time.strftime('%H:%M')}-{speech.end_time.strftime('%H:%M')}\n"
+            schedule_text += f"{status}, {_format_datetime(speech.start_time)}-{_format_time(speech.end_time)}\n"
             schedule_text += f"спикер - {speech.speaker.name}\n"
             schedule_text += f"тема: {speech.title}\n\n"
 

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.dispatch import receiver
+from django.db.models.signals  import pre_delete, post_save
 
 
 class Event(models.Model):
@@ -81,7 +83,9 @@ class Speech(models.Model):
         return f'{self.title} - {self.speaker.name}'
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        is_new = self.pk is None
+
+        if not is_new:
             old_speech = Speech.objects.get(pk=self.pk)
             important_fields_changed = (
                 old_speech.title != self.title or
@@ -89,26 +93,22 @@ class Speech(models.Model):
                 old_speech.end_time != self.end_time or
                 old_speech.speaker_id != self.speaker_id
             )
-            
-            super().save(*args, **kwargs)
-            
-            if important_fields_changed:
-                from tg_bot.notifications import get_notification_service
-                notification_service = get_notification_service()
-                change_description = f"Изменения в выступлении '{self.title}'. Проверьте актуальное расписание."
-                notification_service.send_program_change_notification(self.event, change_description)
         else:
-            super().save(*args, **kwargs)
-    
+            important_fields_changed = True
+
+        super().save(*args, **kwargs)
+
+        if important_fields_changed:
+            from tg_bot.notifications import get_notification_service
+            notification_service = get_notification_service()
+            if is_new:
+                change_description = f"Добавлено новое выступление '{self.title}'. Проверьте актуальное расписание."
+            else:
+                change_description = f"Изменения в выступлении '{self.title}'. Проверьте актуальное расписание."
+            notification_service.send_program_change_notification(self.event, change_description)
+
     def delete(self, *args, **kwargs):
-        event = self.event
-        title = self.title
         super().delete(*args, **kwargs)
-        
-        from .notifications import get_notification_service
-        notification_service = get_notification_service()
-        change_description = f"Выступление '{title}' было удалено из программы."
-        notification_service.send_program_change_notification(event, change_description)
 
 
 class Participant(models.Model):
