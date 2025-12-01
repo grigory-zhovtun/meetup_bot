@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import path
 from django.shortcuts import render
 from django.contrib import messages
@@ -13,7 +13,6 @@ from .models import (
     Donation,
     Notification
 )
-from tg_bot.notifications import get_notification_service
 
 
 @admin.register(Event)
@@ -50,21 +49,23 @@ class EventAdmin(admin.ModelAdmin):
         )
 
     def program_change_view(self, request, object_id):
-        from .models import Event
-        from .notifications import get_notification_service
-    
+        from tg_bot.notifications import get_notification_service
+        
         event = Event.objects.get(id=object_id)
-    
+        
         if request.method == 'POST':
             change_description = request.POST.get('change_description', '')
             if change_description:
                 notification_service = get_notification_service()
+                if not notification_service:
+                    messages.error(request, "Telegram бот не настроен. Уведомления недоступны.")
+                    return HttpResponseRedirect("/admin/datacenter/event/")
                 sent_count = notification_service.send_program_change_notification(event, change_description)
                 messages.success(request, f"Уведомление отправлено {sent_count} подписчикам")
                 return HttpResponseRedirect("/admin/datacenter/event/")
             else:
                 messages.error(request, "Пожалуйста, введите описание изменений")
-    
+
         context = {
             'title': f'Уведомление об изменении программы: {event.title}',
             'event': event,
@@ -74,6 +75,13 @@ class EventAdmin(admin.ModelAdmin):
         return render(request, 'admin/program_change_notification.html', context)
 
     def send_new_event_notification(self, request, queryset):
+        from tg_bot.notifications import get_notification_service
+        
+        notification_service = get_notification_service()
+        if not notification_service:
+            self.message_user(request, "Telegram бот не настроен. Уведомления недоступны.", level='error')
+            return
+        
         sent_count = 0
         for event in queryset:
             count = notification_service.send_new_event_notification(event)
@@ -82,8 +90,15 @@ class EventAdmin(admin.ModelAdmin):
     send_new_event_notification.short_description = "Отправить уведомление о новом мероприятии"
 
     def send_reminder_notification(self, request, queryset):
+        from tg_bot.notifications import get_notification_service
+        
         if queryset.count() != 1:
             self.message_user(request, "Пожалуйста, выберите только одно мероприятие.", level='error')
+            return
+
+        notification_service = get_notification_service()
+        if not notification_service:
+            self.message_user(request, "Telegram бот не настроен. Уведомления недоступны.", level='error')
             return
 
         event = queryset.first()
@@ -101,27 +116,6 @@ class EventAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
-
-    def program_change_view(self, request, object_id):
-        from .models import Event
-        event = Event.objects.get(id=object_id)
-        
-        if request.method == 'POST':
-            change_description = request.POST.get('change_description', '')
-            if change_description:
-                sent_count = notification_service.send_program_change_notification(event, change_description)
-                messages.success(request, f"Уведомление отправлено {sent_count} подписчикам")
-                return HttpResponseRedirect("/admin/datacenter/event/")
-            else:
-                messages.error(request, "Пожалуйста, введите описание изменений")
-
-        context = {
-            'title': f'Уведомление об изменении программы: {event.title}',
-            'event': event,
-            'opts': self.model._meta,
-            'has_view_permission': self.has_view_permission(request),
-        }
-        return render(request, 'admin/program_change_notification.html', context)
 
 
 @admin.register(Speaker)
@@ -166,6 +160,13 @@ class SpeechAdmin(admin.ModelAdmin):
     )
 
     def send_speech_reminder(self, request, queryset):
+        from tg_bot.notifications import get_notification_service
+        
+        notification_service = get_notification_service()
+        if not notification_service:
+            self.message_user(request, "Telegram бот не настроен. Уведомления недоступны.", level='error')
+            return
+        
         sent_count = 0
         for speech in queryset:
             count = notification_service.send_reminder_notification(speech.event, speech)

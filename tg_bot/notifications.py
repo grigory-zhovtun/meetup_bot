@@ -153,5 +153,8 @@ class NotificationService:
             return 0
 
 def get_notification_service():
+    if not TELEGRAM_BOT_TOKEN:
+        logger.warning("TELEGRAM_BOT_TOKEN not set. Notification service will not work.")
+        return None
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     return NotificationService(bot)
