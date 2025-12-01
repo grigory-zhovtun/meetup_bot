@@ -215,11 +215,9 @@ def show_speaker_questions(update: Update, context: CallbackContext) -> None:
 def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
 
-    event = Event.objects.filter(is_active=True).first()
-    if not event:
-        event = Event.objects.order_by("-date").first()
+    active_events = Event.objects.filter(is_active=True)
 
-    if not event:
+    if not active_events.exists():
         update.message.reply_text(
             "Сейчас нет ни одного мероприятия в базе, "
             "но организаторы смогут добавить тебя позже"
@@ -234,17 +232,22 @@ def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
         },
     )
 
-    subscription, created = Subscription.objects.get_or_create(
-        participant=participant,
-        event=event,
-        defaults={
-            'notify_program_changes': True,
-            'notify_new_events': True,
-            'notify_reminders': True
-        }
-    )
+    subscription_created = 0
+    for event in active_events:
+        subscription, created = Subscription.objects.get_or_create(
+            participant=participant,
+            event=event,
+            defaults={
+                'notify_program_changes': True,
+                'notify_new_events': True,
+                'notify_reminders': True
+            }
+        )
 
-    if created:
+        if created:
+            subscriptions_created += 1
+
+    if subscription_created > 0:
         update.message.reply_text(
             "Готово! Ты подписан на уведомления о:\n"
             "• Изменениях в программе\n"

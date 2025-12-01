@@ -29,23 +29,30 @@ class Event(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        is_new = self.pk is None
+
+        if not is_new:
             old_event = Event.objects.get(pk=self.pk)
             important_fields_changed = (
                 old_event.title != self.title or
-                old_event.date != self.date or
-                old_event.description != self.description
+                old_event.date != self.date
             )
-            
-            super().save(*args, **kwargs)
-            
-            if important_fields_changed:
-                from tg_bot.notifications import get_notification_service
-                notification_service = get_notification_service()
-                change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальную информацию."
-                notification_service.send_program_change_notification(self, change_description)
         else:
-            super().save(*args, **kwargs)
+            important_fields_changed = True
+
+        super().save(*args, **kwargs)
+
+        if important_fields_changed:
+            from tg_bot.notifications import get_notification_service
+            notification_service = get_notification_service()
+            if is_new:
+                change_description = f"Добавлено новое мероприятие '{self.title}'. Проверьте актуальное расписание."
+            else:
+                change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальное расписание."
+            notification_service.send_program_change_notification(self, change_description)
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
 
 
 class Speaker(models.Model):
