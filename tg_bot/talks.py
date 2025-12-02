@@ -94,22 +94,35 @@ def _format_datetime(dt):
 
 def show_schedule(update: Update, context: CallbackContext) -> None:
     try:
-        event = Event.objects.filter(is_active=True).first()
-        if not event:
+        # Получаем все активные мероприятия
+        active_events = Event.objects.filter(is_active=True).order_by('date')
+        if not active_events.exists():
             update.message.reply_text("В данный момент нет активных событий")
             return
 
-        speeches = Speech.objects.filter(event=event).select_related("speaker").order_by("start_time")
+        # Получаем все выступления из всех активных мероприятий
+        speeches = Speech.objects.filter(
+            event__in=active_events
+        ).select_related("speaker", "event").order_by("start_time")
 
-        if not speeches:
+        if not speeches.exists():
             update.message.reply_text(
                 "Программа выступлений пока не доступна"
             )
             return
 
-        schedule_text = f"Программа: {event.title}\n\n"
-
+        # Группируем выступления по мероприятиям
+        schedule_text = ""
+        current_event = None
+        
         for speech in speeches:
+            # Если это новое мероприятие, добавляем заголовок
+            if current_event != speech.event:
+                current_event = speech.event
+                if schedule_text:
+                    schedule_text += "\n"
+                schedule_text += f"Программа: {current_event.title}\n\n"
+
             now = timezone.now()
             if speech.start_time <= now <= speech.end_time:
                 status = "Сейчас"
@@ -117,7 +130,19 @@ def show_schedule(update: Update, context: CallbackContext) -> None:
                 status = "Будет"
             else:
                 status = "Завершено"
-            schedule_text += f"{status}, {_format_datetime(speech.start_time)}-{_format_time(speech.end_time)}\n"
+            
+            # Форматируем время: если начало и конец в один день, показываем дату только для начала
+            start_local = timezone.localtime(speech.start_time)
+            end_local = timezone.localtime(speech.end_time)
+            
+            if start_local.date() == end_local.date():
+                # Оба времени в один день - показываем дату только для начала
+                time_range = f"{_format_datetime(speech.start_time)}-{end_local.strftime('%H:%M')}"
+            else:
+                # Разные дни - показываем дату для обоих
+                time_range = f"{_format_datetime(speech.start_time)}-{_format_datetime(speech.end_time)}"
+            
+            schedule_text += f"{status}, {time_range}\n"
             schedule_text += f"спикер - {speech.speaker.name}\n"
             schedule_text += f"тема: {speech.title}\n\n"
 
