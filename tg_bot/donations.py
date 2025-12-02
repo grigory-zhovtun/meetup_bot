@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import CallbackContext
+from django.utils import timezone
 
-from datacenter.models import Participant
+from datacenter.models import Participant, Donation
 
 
 DONATION_STATE_KEY = "donation_state"
@@ -70,11 +71,19 @@ def handle_donation_message_if_active(update: Update, context: CallbackContext) 
                 "full_name": f"{user.first_name} {user.last_name or ''}".strip()
             }
         )
-        print(f"[DONATION INTENT] from {user.id} (@{user.username}): {amount} RUB")
+        
+        # Сохраняем донат в базу данных
+        donation = Donation.objects.create(
+            participant=participant,
+            amount=amount
+        )
+        
+        print(f"[DONATION] Saved to DB: ID={donation.id}, from {user.id} (@{user.username}): {amount} RUB")
 
         update.message.reply_text(
             f"Спасибо! Ты выбрал(а) поддержать митап на {amount} ₽\n\n"
-            "Ссылка для оплаты: https://example.com/donation\n"
+            "Ссылка для оплаты: https://example.com/donation\n\n"
+            f"Твой донат записан. Дата: {timezone.localtime(donation.created_at).strftime('%d.%m.%Y %H:%M')}"
         )
     except Exception as e:
         print(f"Error saving donation: {e}")

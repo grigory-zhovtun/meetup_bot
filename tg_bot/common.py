@@ -6,7 +6,7 @@ from telegram.ext import (
 from tg_bot.talks import (
     start_ask_question, handle_question_if_waiting, show_schedule, 
     show_speaker_questions, subscribe_to_next_events, unsubscribe_from_events,
-    notification_settings, handle_settings_callback
+    notification_settings, handle_settings_callback, handle_subscribe_callback
 )
 from tg_bot.networking import (
     start_networking, handle_networking_message_if_active
@@ -132,6 +132,12 @@ def register_common_handlers(dispatcher):
     dispatcher.add_handler(
         CallbackQueryHandler(
             handle_settings_callback, pattern='^(toggle_|info_)'
+        )
+    )
+    
+    dispatcher.add_handler(
+        CallbackQueryHandler(
+            handle_subscribe_callback, pattern='^subscribe_'
         )
     )
     

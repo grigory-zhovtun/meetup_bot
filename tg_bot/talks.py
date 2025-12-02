@@ -1,6 +1,6 @@
 from django.utils import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackContext
+from telegram.ext import CallbackContext, CallbackQueryHandler
 
 from datacenter.models import Event, Speech, Speaker, Participant, Question, Subscription
 from .notifications import get_notification_service
@@ -215,7 +215,7 @@ def show_speaker_questions(update: Update, context: CallbackContext) -> None:
 def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
 
-    active_events = Event.objects.filter(is_active=True)
+    active_events = Event.objects.filter(is_active=True).order_by('date')
 
     if not active_events.exists():
         update.message.reply_text(
@@ -224,6 +224,46 @@ def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
         )
         return
 
+    # Если только одно мероприятие, подписываем сразу
+    if active_events.count() == 1:
+        event = active_events.first()
+        _subscribe_to_event(update, context, event.id)
+        return
+
+    # Если несколько мероприятий, показываем выбор
+    keyboard = []
+    for event in active_events:
+        event_date = timezone.localtime(event.date).strftime('%d.%m.%Y %H:%M')
+        button_text = f"{event.title} ({event_date})"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"subscribe_{event.id}")])
+    
+    keyboard.append([InlineKeyboardButton("Отмена", callback_data="subscribe_cancel")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    text = (
+        "Выбери мероприятие, на которое хочешь подписаться:\n\n"
+        "Ты будешь получать уведомления о:\n"
+        "• Изменениях в программе\n"
+        "• Напоминаниях о начале\n"
+    )
+    
+    update.message.reply_text(text, reply_markup=reply_markup)
+
+
+def _subscribe_to_event(update: Update, context: CallbackContext, event_id: int) -> None:
+    """Внутренняя функция для подписки на конкретное мероприятие"""
+    try:
+        event = Event.objects.get(id=event_id, is_active=True)
+    except Event.DoesNotExist:
+        if update.callback_query:
+            update.callback_query.answer("Мероприятие не найдено или неактивно")
+        else:
+            update.message.reply_text("Мероприятие не найдено или неактивно")
+        return
+
+    user = update.effective_user if update.message else update.callback_query.from_user
+    
     participant, _ = Participant.objects.get_or_create(
         telegram_id=user.id,
         defaults={
@@ -232,34 +272,52 @@ def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
         },
     )
 
-    subscription_created = 0
-    for event in active_events:
-        subscription, created = Subscription.objects.get_or_create(
-            participant=participant,
-            event=event,
-            defaults={
-                'notify_program_changes': True,
-                'notify_new_events': True,
-                'notify_reminders': True
-            }
-        )
+    subscription, created = Subscription.objects.get_or_create(
+        participant=participant,
+        event=event,
+        defaults={
+            'notify_program_changes': True,
+            'notify_new_events': True,
+            'notify_reminders': True
+        }
+    )
 
-        if created:
-            subscriptions_created += 1
-
-    if subscription_created > 0:
-        update.message.reply_text(
-            "Готово! Ты подписан на уведомления о:\n"
-            "• Изменениях в программе\n"
-            "• Новых мероприятиях\n"
-            "• Напоминаниях о начале\n\n"
-            "Используй /settings чтобы настроить уведомления"
+    if created:
+        text = (
+            f"Готово! Ты подписан на уведомления о мероприятии:\n"
+            f"*{event.title}*\n\n"
+            f"Ты будешь получать уведомления о:\n"
+            f"• Изменениях в программе\n"
+            f"• Напоминаниях о начале\n\n"
+            f"Используй /settings чтобы настроить уведомления"
         )
     else:
-        update.message.reply_text(
-            "Ты уже подписан на уведомления о следующем митапе.\n"
-            "Используй /settings чтобы изменить настройки"
+        text = (
+            f"Ты уже подписан на уведомления о мероприятии:\n"
+            f"*{event.title}*\n\n"
+            f"Используй /settings чтобы изменить настройки"
         )
+
+    if update.callback_query:
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text, parse_mode='Markdown')
+    else:
+        update.message.reply_text(text, parse_mode='Markdown')
+
+
+def handle_subscribe_callback(update: Update, context: CallbackContext) -> None:
+    """Обработчик callback для выбора мероприятия при подписке"""
+    query = update.callback_query
+    data = query.data
+
+    if data == "subscribe_cancel":
+        query.answer()
+        query.edit_message_text("Подписка отменена")
+        return
+
+    if data.startswith("subscribe_"):
+        event_id = int(data.replace("subscribe_", ""))
+        _subscribe_to_event(update, context, event_id)
 
 
 def unsubscribe_from_events(update: Update, context: CallbackContext) -> None:
