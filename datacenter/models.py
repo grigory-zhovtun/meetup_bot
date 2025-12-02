@@ -45,12 +45,11 @@ class Event(models.Model):
         if important_fields_changed:
             from tg_bot.notifications import get_notification_service
             notification_service = get_notification_service()
-            if notification_service:
-                if is_new:
-                    change_description = f"Добавлено новое мероприятие '{self.title}'. Проверьте актуальное расписание."
-                else:
-                    change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальное расписание."
-                notification_service.send_program_change_notification(self, change_description)
+            if is_new:
+                change_description = f"Добавлено новое мероприятие '{self.title}'. Проверьте актуальное расписание."
+            else:
+                change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальное расписание."
+            notification_service.send_program_change_notification(self, change_description)
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
@@ -109,12 +108,11 @@ class Speech(models.Model):
         if important_fields_changed:
             from tg_bot.notifications import get_notification_service
             notification_service = get_notification_service()
-            if notification_service:
-                if is_new:
-                    change_description = f"Добавлено новое выступление '{self.title}'. Проверьте актуальное расписание."
-                else:
-                    change_description = f"Изменения в выступлении '{self.title}'. Проверьте актуальное расписание."
-                notification_service.send_program_change_notification(self.event, change_description)
+            if is_new:
+                change_description = f"Добавлено новое выступление '{self.title}'. Проверьте актуальное расписание."
+            else:
+                change_description = f"Изменения в выступлении '{self.title}'. Проверьте актуальное расписание."
+            notification_service.send_program_change_notification(self.event, change_description)
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
@@ -218,10 +216,6 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.created_at.strftime('%d.%m.%Y %H:%M')})"
-
-    class Meta:
-        verbose_name = 'Уведомление'
-        verbose_name_plural = 'Уведомления'
 
 
 class UserNotification(models.Model):

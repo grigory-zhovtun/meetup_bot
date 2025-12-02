@@ -68,9 +68,10 @@ class NotificationService:
     
     def send_new_event_notification(self, event):
         try:
-            participants = Participant.objects.filter(
-                subscription__notify_new_events=True
-            ).distinct()
+            participants = Participant.objects.all()
+
+            if not participants.exists:
+                logger.info(f"No subscribers for events")
             
             notification = Notification.objects.create(
                 event=event,
@@ -82,29 +83,62 @@ class NotificationService:
             sent_count = 0
             for participant in participants:
                 try:
+                    has_new_events_enabled = Subscription.objects.filter(
+                        participant=participant,
+                        notify_new_events=True
+                    ).exists()
+
+                    if not Subscription.objects.filter(participant=participant).exists():
+                        has_new_events_enabled = True
+                
+                    if not has_new_events_enabled:
+                        continue
+                
+                    subscription, created = Subscription.objects.get_or_create(
+                        participant=participant,
+                        event=event,
+                        defaults={
+                            'notify_program_changes': True,
+                            'notify_new_events': True,
+                            'notify_reminders': True
+                        }
+                    )
+                
+                    message_text = (
+                        f"*Новое мероприятие!*\n\n"
+                        f"*{event.title}*\n\n"
+                        f"{event.description}\n\n"
+                        f"Дата: {event.date.strftime('%d.%m.%Y %H:%M')}\n\n"
+                        f"Используй /subscribe чтобы подписаться на уведомления об этом мероприятии"
+                    )
+                
                     self.bot.send_message(
                         chat_id=participant.telegram_id,
-                        text=f"*Новое мероприятие!*\n\n*{event.title}*\n\n{event.description}\n\n"
-                             f"Дата: {event.date.strftime('%d.%m.%Y %H:%M')}\n"
-                             f"Используй /subscribe чтобы подписаться на уведомления"
+                        text=message_text,
+                        parse_mode="Markdown"
                     )
+                
                     UserNotification.objects.create(
                         participant=participant,
                         notification=notification
                     )
+                
                     sent_count += 1
+                    logger.info(f"Sent new event notification to {participant.telegram_id}")
+                
                 except Exception as e:
                     logger.error(f"Failed to send new event notification to {participant.telegram_id}: {e}")
-            
+        
             notification.is_sent = True
             notification.save()
-            
-            logger.info(f"Sent {sent_count} new event notifications")
+        
+            logger.info(f"Sent {sent_count} new event notifications for event {event.title}")
             return sent_count
-            
+        
         except Exception as e:
             logger.error(f"Error sending new event notifications: {e}")
             return 0
+
     
     def send_reminder_notification(self, event, speech=None):
         try:
